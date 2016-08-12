@@ -27,10 +27,15 @@
 #include "usbcfg.h"
 #include <stdlib.h>
 
-#define LED_ORANGE GPIOD_LED3
-#define LED_GREEN GPIOD_LED4
-#define LED_BLUE GPIOD_LED6
-#define LED_RED GPIOD_LED5
+#define LED_BMS_HEARTBEAT GPIOD_LED3 //orange
+#define LED_CAN_RX GPIOD_LED4 //green
+#define LED_RED GPIOD_LED5 //red
+#define LED_BOARDHEARTBEAT GPIOD_LED6 //blue
+
+#define LED_ON(LED) palSetPad(GPIOD, LED)
+#define LED_OFF(LED) palClearPad(GPIOD, LED)
+#define LED_TOGGLE(LED) palTogglePad(GPIOD, LED)
+
 
 #define USE_WDG FALSE
 
@@ -39,7 +44,7 @@ struct can_instance {
   uint32_t      led;
 };
 
-static const struct can_instance can1 = {&CAND1, LED_GREEN};
+static const struct can_instance can1 = {&CAND1, LED_CAN_RX};
 
 
 /* Virtual serial port over USB.*/
@@ -90,6 +95,28 @@ static const ShellConfig shell_cfg1 = {
   commands
 };
 
+static thread_t *tpRXNotification;
+static THD_WORKING_AREA(rx_notification_wa, 256);
+static THD_FUNCTION(rx_notification, p) {
+
+    (void)p;
+    chRegSetThreadName("rx_blink");
+    tpRXNotification = chThdGetSelfX();
+    LED_OFF(LED_CAN_RX);
+    while (!chThdShouldTerminateX())
+    {
+         if (chEvtWaitAnyTimeout((eventmask_t)1, MS2ST(100)) == 0)
+         {
+             continue;
+         }
+
+         LED_ON(LED_CAN_RX);
+         chThdSleepMilliseconds(200);
+         LED_OFF(LED_CAN_RX);
+    }
+}
+
+
 /*
  * CAN receiver thread
  */
@@ -100,6 +127,8 @@ static THD_FUNCTION(can_rx, p) {
   CANRxFrame rxmsg;
 
   (void)p;
+
+
   chRegSetThreadName("receiver");
   chEvtRegister(&cip->canp->rxfull_event, &el, 0);
   while(!chThdShouldTerminateX()) {
@@ -107,15 +136,21 @@ static THD_FUNCTION(can_rx, p) {
       continue;
     while (canReceive(cip->canp, CAN_ANY_MAILBOX,
                       &rxmsg, TIME_IMMEDIATE) == MSG_OK) {
+      chEvtSignal(tpRXNotification, (eventmask_t)1);
       /* Process message.*/
-      palTogglePad(GPIOD, cip->led);
+//      if (SDU1.config->usbp->state == USB_ACTIVE)
+//      {
+//          chprintf((BaseSequentialStream *)&SDU1, "%08u: %08lx %08lx\r\n",
+//                             (uint32_t)rxmsg.SID, (uint32_t)rxmsg.data32[0], (uint32_t)rxmsg.data32[1]);
+//      }
+
     }
   }
   chEvtUnregister(&cip->canp->rxfull_event, &el);
 }
 
 /*
- * This is a periodic thread that reads uid from rfid periphal
+ * This is a periodic thread that sends a heartbeat to BMS
  */
 static THD_WORKING_AREA(can_tx_wa, 256);
 static THD_FUNCTION(can_tx, arg) {
@@ -124,22 +159,42 @@ static THD_FUNCTION(can_tx, arg) {
 
 	(void)arg;
 	chRegSetThreadName("transmitter");
-	txmsg.IDE = CAN_IDE_EXT;
-	txmsg.EID = 0x01234567;
+	txmsg.IDE = CAN_IDE_STD;
+	txmsg.EID = 0x00000131;
 	txmsg.RTR = CAN_RTR_DATA;
 	txmsg.DLC = 8;
 	txmsg.data32[0] = 0x00000000;
 	txmsg.data32[1] = 0x00000000;
 
-	palSetPad(GPIOD, LED_ORANGE);
+	LED_OFF(LED_BMS_HEARTBEAT);
 
 	while (!chThdShouldTerminateX()) {
 		canTransmit(&CAND1, CAN_ANY_MAILBOX, &txmsg, MS2ST(100));
-		palClearPad(GPIOD, LED_ORANGE);
-		chThdSleepMilliseconds(100);
-		palSetPad(GPIOD, LED_ORANGE);
-		chThdSleepSeconds(120);
+
+		//signal transmit with LED
+		LED_ON(LED_BMS_HEARTBEAT);
+		chThdSleepMilliseconds(200);
+		LED_OFF(LED_BMS_HEARTBEAT);
+		chThdSleepMilliseconds(20000);
 	}
+}
+
+/*
+ * This is a periodic thread that blinks a LED to show board activity
+ */
+static THD_WORKING_AREA(board_heartbeat_wa, 256);
+static THD_FUNCTION(board_heartbeat, arg) {
+
+    (void)arg;
+    chRegSetThreadName("heartbeat");
+
+    LED_OFF(LED_BOARDHEARTBEAT);
+
+    while (!chThdShouldTerminateX())
+    {
+        LED_TOGGLE(LED_BOARDHEARTBEAT);
+        chThdSleepSeconds(1);
+    }
 }
 
 
@@ -149,7 +204,7 @@ static THD_FUNCTION(can_tx, arg) {
 
 int main(void)
 {
-    thread_t *shelltp = NULL;
+    //thread_t *shelltp = NULL;
 
     /*
      * System initializations.
@@ -175,10 +230,17 @@ int main(void)
     /*
     * Creates threads.
     */
+    chThdCreateStatic(rx_notification_wa, sizeof(rx_notification_wa), LOWPRIO + 1,
+            rx_notification, NULL);
+
     chThdCreateStatic(can_rx_wa, sizeof(can_rx_wa), NORMALPRIO + 7,
                       can_rx, (void *)&can1);
     chThdCreateStatic(can_tx_wa, sizeof(can_tx_wa), NORMALPRIO + 7,
                         can_tx, NULL);
+
+
+    chThdCreateStatic(board_heartbeat_wa, sizeof(board_heartbeat_wa), LOWPRIO,
+            board_heartbeat, NULL);
 
     /*
      * Normal main() thread activity, in this demo it just performs
@@ -186,20 +248,20 @@ int main(void)
      */
     while (TRUE)
     {
-        if (!shelltp) {
-          if (SDU1.config->usbp->state == USB_ACTIVE) {
-            /* Spawns a new shell.*/
-            shelltp = shellCreate(&shell_cfg1, SHELL_WA_SIZE, NORMALPRIO);
-          }
-        }
-        else {
-          /* If the previous shell exited.*/
-          if (chThdTerminatedX(shelltp)) {
-            /* Recovers memory of the previous shell.*/
-            chThdRelease(shelltp);
-            shelltp = NULL;
-          }
-        }
+//        if (!shelltp) {
+//          if (SDU1.config->usbp->state == USB_ACTIVE) {
+//            /* Spawns a new shell.*/
+//            shelltp = shellCreate(&shell_cfg1, SHELL_WA_SIZE, NORMALPRIO);
+//          }
+//        }
+//        else {
+//          /* If the previous shell exited.*/
+//          if (chThdTerminatedX(shelltp)) {
+//            /* Recovers memory of the previous shell.*/
+//            chThdRelease(shelltp);
+//            shelltp = NULL;
+//          }
+//        }
         chThdSleepMilliseconds(500);
     }
 }

@@ -138,11 +138,8 @@ static THD_FUNCTION(can_rx, p) {
                       &rxmsg, TIME_IMMEDIATE) == MSG_OK) {
       chEvtSignal(tpRXNotification, (eventmask_t)1);
       /* Process message.*/
-//      if (SDU1.config->usbp->state == USB_ACTIVE)
-//      {
-//          chprintf((BaseSequentialStream *)&SDU1, "%08u: %08lx %08lx\r\n",
-//                             (uint32_t)rxmsg.SID, (uint32_t)rxmsg.data32[0], (uint32_t)rxmsg.data32[1]);
-//      }
+      chprintf((BaseSequentialStream *)&SDU1, "%08lx: %08lx %08lx\r\n",
+           (uint32_t)rxmsg.SID, (uint32_t)rxmsg.data32[0], (uint32_t)rxmsg.data32[1]);
 
     }
   }
@@ -160,7 +157,7 @@ static THD_FUNCTION(can_tx, arg) {
 	(void)arg;
 	chRegSetThreadName("transmitter");
 	txmsg.IDE = CAN_IDE_STD;
-	txmsg.EID = 0x00000131;
+	txmsg.EID = 0x00000305;
 	txmsg.RTR = CAN_RTR_DATA;
 	txmsg.DLC = 8;
 	txmsg.data32[0] = 0x00000000;

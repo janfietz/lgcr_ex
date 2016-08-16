@@ -138,8 +138,8 @@ static THD_FUNCTION(can_rx, p) {
                       &rxmsg, TIME_IMMEDIATE) == MSG_OK) {
       chEvtSignal(tpRXNotification, (eventmask_t)1);
       /* Process message.*/
-      chprintf((BaseSequentialStream *)&SDU1, "%08lx: %08lx %08lx\r\n",
-           (uint32_t)rxmsg.SID, (uint32_t)rxmsg.data32[0], (uint32_t)rxmsg.data32[1]);
+//      chprintf((BaseSequentialStream *)&SDU1, "%08lx: %08lx %08lx\r\n",
+//           (uint32_t)rxmsg.SID, (uint32_t)rxmsg.data32[0], (uint32_t)rxmsg.data32[1]);
 
     }
   }
@@ -201,7 +201,7 @@ static THD_FUNCTION(board_heartbeat, arg) {
 
 int main(void)
 {
-    //thread_t *shelltp = NULL;
+    thread_t *shelltp = NULL;
 
     /*
      * System initializations.
@@ -245,20 +245,20 @@ int main(void)
      */
     while (TRUE)
     {
-//        if (!shelltp) {
-//          if (SDU1.config->usbp->state == USB_ACTIVE) {
-//            /* Spawns a new shell.*/
-//            shelltp = shellCreate(&shell_cfg1, SHELL_WA_SIZE, NORMALPRIO);
-//          }
-//        }
-//        else {
-//          /* If the previous shell exited.*/
-//          if (chThdTerminatedX(shelltp)) {
-//            /* Recovers memory of the previous shell.*/
-//            chThdRelease(shelltp);
-//            shelltp = NULL;
-//          }
-//        }
+        if (!shelltp) {
+          if (SDU1.config->usbp->state == USB_ACTIVE) {
+            /* Spawns a new shell.*/
+            shelltp = shellCreate(&shell_cfg1, SHELL_WA_SIZE, NORMALPRIO);
+          }
+        }
+        else {
+          /* If the previous shell exited.*/
+          if (chThdTerminatedX(shelltp)) {
+            /* Recovers memory of the previous shell.*/
+            chThdRelease(shelltp);
+            shelltp = NULL;
+          }
+        }
         chThdSleepMilliseconds(500);
     }
 }

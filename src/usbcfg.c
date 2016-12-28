@@ -16,10 +16,11 @@
 
 #include "ch.h"
 #include "hal.h"
+#include "targetconf.h"
+
 
 /* Virtual serial port over USB.*/
-SerialUSBDriver SDU1;
-
+extern SerialUSBDriver SDU;
 /*
  * Endpoints to be used for USBD2.
  */
@@ -265,7 +266,7 @@ static const USBEndpointConfig ep2config = {
  * Handles the USB driver global events.
  */
 static void usb_event(USBDriver *usbp, usbevent_t event) {
-  extern SerialUSBDriver SDU1;
+  extern SerialUSBDriver SDU;
 
   switch (event) {
   case USB_EVENT_RESET:
@@ -282,7 +283,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
     usbInitEndpointI(usbp, USBD2_INTERRUPT_REQUEST_EP, &ep2config);
 
     /* Resetting the state of the CDC subsystem.*/
-    sduConfigureHookI(&SDU1);
+    sduConfigureHookI(&SDU);
 
     chSysUnlockFromISR();
     return;
@@ -292,7 +293,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
       chSysLockFromISR();
 
       /* Disconnection event on suspend.*/
-      sduDisconnectI(&SDU1);
+      sduDisconnectI(&SDU);
 
       chSysUnlockFromISR();
       return;
@@ -312,7 +313,7 @@ static void sof_handler(USBDriver *usbp) {
   (void)usbp;
 
   osalSysLockFromISR();
-  sduSOFHookI(&SDU1);
+  sduSOFHookI(&SDU);
   osalSysUnlockFromISR();
 }
 

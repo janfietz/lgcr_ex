@@ -11,8 +11,19 @@
 #include "hal.h"
 
 #include "usbcfg.h"
+#include "mod_led.h"
 
 extern SerialUSBDriver SDU1;
+
+extern ModLED LED_BMS_HEARTBEAT;
+extern ModLED LED_CAN_RX;
+extern ModLED LED_BOARDHEARTBEAT;
+extern ModLED LED_RED;
+
+static ModLEDConfig ledCfg1 = {GPIOD, GPIOD_LED3, false};
+static ModLEDConfig ledCfg2 = {GPIOD, GPIOD_LED4, false};
+static ModLEDConfig ledCfg3 = {GPIOD, GPIOD_LED5, false};
+static ModLEDConfig ledCfg4 = {GPIOD, GPIOD_LED6, false};
 
 /*
  * 500KBaud, automatic wakeup, automatic recover
@@ -28,12 +39,18 @@ static const CANConfig cancfg = {
 
 void BoardDriverInit(void)
 {
+    mod_led_init(&LED_BMS_HEARTBEAT, &ledCfg1);
+    mod_led_init(&LED_CAN_RX, &ledCfg2);
+    mod_led_init(&LED_RED, &ledCfg3);
+    mod_led_init(&LED_BOARDHEARTBEAT, &ledCfg4);
+
     sduObjectInit(&SDU1);
 }
 
 void BoardDriverStart(void)
 {
 	canStart(&CAND1, &cancfg);
+
 	palSetPadMode(GPIOD, 0, PAL_MODE_ALTERNATE(9));
 	palSetPadMode(GPIOD, 1, PAL_STM32_OSPEED_HIGHEST | PAL_MODE_ALTERNATE(9));
     /*

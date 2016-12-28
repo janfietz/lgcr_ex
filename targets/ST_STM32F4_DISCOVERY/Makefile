@@ -5,12 +5,12 @@
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
-  USE_OPT = -OS -ggdb -fomit-frame-pointer -falign-functions=16
+  USE_OPT = -Os -ggdb -fomit-frame-pointer -falign-functions=16
 endif
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
-  USE_COPT = 
+  USE_COPT =
 endif
 
 # C++ specific options here (added to USE_OPT).
@@ -25,7 +25,7 @@ endif
 
 # Linker extra options here.
 ifeq ($(USE_LDOPT),)
-  USE_LDOPT = 
+  USE_LDOPT =
 endif
 
 # Enable this if you want link time optimizations (LTO)
@@ -80,13 +80,13 @@ endif
 
 ##############################################################################
 # Project, sources and paths
-PRJ_SRC = src
+PRJ_SRC = ../../src
 
 # Define project name here
 PROJECT = lgcr_ex
 
 # Imported source files and paths
-CHIBIOS = submodules/ChibiOS
+CHIBIOS = ../../submodules/ChibiOS
 # Startup files.
 include $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC/mk/startup_stm32f4xx.mk
 # HAL-OSAL files (optional).
@@ -114,8 +114,9 @@ CSRC = $(STARTUPSRC) \
        $(CHIBIOS)/os/hal/lib/streams/memstreams.c \
        $(CHIBIOS)/os/hal/lib/streams/chprintf.c \
        $(PRJ_SRC)/usbcfg.c \
+       $(PRJ_SRC)/mod_led.c \
        board_drivers.c \
-       main.c
+       $(PRJ_SRC)/main.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
@@ -149,7 +150,9 @@ INCDIR = target \
          $(HALINC) $(PLATFORMINC) $(BOARDINC) $(TESTINC) \
          $(CHIBIOS)/os/hal/lib/streams \
          $(CHIBIOS)/os/various \
-         src
+         ../.. \
+         $(PRJ_SRC) \
+
 
 #
 # Project, sources and paths
@@ -208,7 +211,7 @@ UADEFS =
 UINCDIR =
 
 # List the user directory to look for the libraries here
-ULIBDIR = 
+ULIBDIR =
 
 # List all user libraries here
 ULIBS = -lm
